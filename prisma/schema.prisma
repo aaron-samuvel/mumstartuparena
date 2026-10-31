@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum JobStatus {
+  OPEN
+  CLOSED
+  EXPIRED
+  NEEDS_REVIEW
+}
+
+enum WorkMode {
+  ONSITE
+  HYBRID
+  REMOTE
+  UNSPECIFIED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  APPRENTICESHIP
+  UNSPECIFIED
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+model Company {
+  id                 String             @id @default(cuid())
+  name               String
+  slug               String             @unique
+  description        String?            @db.Text
+  websiteUrl         String?
+  careersUrl         String?
+  industry           String?
+  dataSourceId       String?
+  dataSource         DataSource?        @relation(fields: [dataSourceId], references: [id], onDelete: SetNull)
+  verificationStatus VerificationStatus @default(PENDING)
+  verifiedAt         DateTime?
+  sourceUrl          String?
+  lastCheckedAt      DateTime?
+  lastVerifiedAt     DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  offices            Office[]
+  jobs               Job[]
+
+  @@index([name])
+  @@index([industry])
+  @@index([dataSourceId])
+  @@index([verificationStatus])
+}
+
+model Office {
+  id                 String             @id @default(cuid())
+  companyId          String
+  company            Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  verificationStatus VerificationStatus @default(PENDING)
+  name               String?
+  address            String?
+  locality           String
+  city               String
+  latitude           Float?
+  longitude          Float?
+  sourceUrl          String?
+  verifiedAt         DateTime?
+  createdAt          DateTime           @default(now())
+
+  @@index([city, locality])
+  @@index([latitude, longitude])
+  @@index([verificationStatus])
+}
+
+model Job {
+  id               String         @id @default(cuid())
+  companyId        String
+  company          Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title            String
+  description      String?        @db.Text
+  originalUrl      String
+  sourceUrl        String?
+  sourceName       String?
+  externalId       String?
+  locality         String?
+  city             String?
+  workMode         WorkMode       @default(UNSPECIFIED)
+  employmentType   EmploymentType @default(UNSPECIFIED)
+  minExperienceYrs Float?
+  maxExperienceYrs Float?
+  salaryMin        Int?
+  salaryMax        Int?
+  salaryCurrency   String         @default("INR")
+  fresherFriendly  Boolean        @default(false)
+  skills           String[]       @default([])
+  status           JobStatus      @default(NEEDS_REVIEW)
+  dataSourceId     String?
+  dataSource       DataSource?    @relation(fields: [dataSourceId], references: [id], onDelete: SetNull)
+  postedAt         DateTime?
+  lastCheckedAt    DateTime?
+  lastVerifiedAt   DateTime?
+  expiresAt        DateTime?
+  contentHash      String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([companyId, externalId])
+  @@index([status, postedAt])
+  @@index([city, locality])
+  @@index([fresherFriendly, status])
+  @@index([contentHash])
+  @@index([dataSourceId])
+}
+
+model DataSource {
+  id                  String    @id @default(cuid())
+  name                String
+  url                 String
+  sourceType          String
+  refreshIntervalMins Int       @default(1440)
+  enabled             Boolean   @default(false)
+  limitations         String?   @db.Text
+  lastCheckedAt       DateTime?
+  lastSuccessfulAt    DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  companies           Company[]
+  jobs                Job[]
+
+  @@index([enabled, lastCheckedAt])
+}
